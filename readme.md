@@ -37,7 +37,7 @@ Loading the JavaScript bundle exposes `initRDKitModule()`, which initializes the
 RDKit runs in its own WASM memory space, separate from JavaScript memory.
 The module can be loaded inside a Web Worker to perform computationally intensive operations without blocking the main thread.
 
-WASM loading is asynchronous. `initRDKitModule()` returns a Promise. Wait for it, just wait for it like
+WASM loading is asynchronous. `initRDKitModule()` returns a Promise, so you load it with either `.then` chain or `await`.
 
 ```js
 let GlobalRDKit;
@@ -50,8 +50,6 @@ initRDKitModule().then(function (RDKit) {
   window.RDKit = RDKit;
 })
 ```
-
-Or with `await`
 
 ```js
 const GlobalRDKit = await initRDKitModule();
