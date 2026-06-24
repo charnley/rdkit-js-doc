@@ -43,12 +43,12 @@ WASM loading is asynchronous. `initRDKitModule()` returns a Promise. Wait for it
 let GlobalRDKit;
 
 initRDKitModule().then(function (RDKit) {
-    console.log("RDKit version: " + RDKit.version());
+  console.log("RDKit version: " + RDKit.version());
 
-    // Set RDKit either as a global variable, or in the window object
-    GlobalRDKit = RDKit;
-    window.RDKit = RDKit;
-  })
+  // Set RDKit either as a global variable, or in the browser window object
+  GlobalRDKit = RDKit;
+  window.RDKit = RDKit;
+})
 ```
 
 Or with `await`
