@@ -1,6 +1,7 @@
 ---
 layout: page
 title: RDKit.js Documentation
+permalink: /
 ---
 
 RDKit.js is the official JavaScript distribution of cheminformatics functionality from the [RDKit](https://github.com/rdkit/rdkit) — a C++ library for cheminformatics.
