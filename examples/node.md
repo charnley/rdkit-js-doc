@@ -1,10 +1,9 @@
 ---
 layout: page
-title: Node.js
+title: Using RDKit.js with Node.js
+menu: Node.js
 permalink: /examples/node/
 ---
-
-## Using RDKit.js with Node.js
 
 RDKit.js works server-side for cheminformatics computations — no browser needed. Use ESM imports directly from the npm package.
 

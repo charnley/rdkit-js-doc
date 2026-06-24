@@ -1,10 +1,9 @@
 ---
 layout: page
-title: Svelte
+title: Using RDKit.js with Svelte
+menu: Svelte
 permalink: /examples/svelte/
 ---
-
-## Using RDKit.js with Svelte
 
 A reusable `MoleculeStructure` component using Svelte's reactive declarations and lifecycle hooks.
 

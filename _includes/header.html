@@ -15,19 +15,15 @@
       </label>
 
       <div class="trigger">
+        <a class="page-link" href="{{ '/demo/' | relative_url }}">Demo</a>
         {%- assign example_pages = site.pages | where_exp: "p", "p.path contains 'examples/'" %}
-        {%- assign sorted = "" | split: "" %}
-        {%- for p in example_pages %}
-          {%- assign slug = p.path | split: "/" | last | split: "." | first %}
-          {%- assign sorted = sorted | push: slug %}
-        {%- endfor %}
 
         {%- assign order = "vanilla-js react vue angular svelte nextjs node" | split: " " %}
         {%- for name in order %}
           {%- for p in example_pages %}
             {%- assign slug = p.path | split: "/" | last | split: "." | first %}
             {%- if slug == name %}
-              <a class="page-link" href="{{ p.url | relative_url }}">{{ p.title | escape }}</a>
+              <a class="page-link" href="{{ p.url | relative_url }}">{{ p.menu | escape }}</a>
             {%- endif %}
           {%- endfor %}
         {%- endfor %}

@@ -1,10 +1,9 @@
 ---
 layout: page
-title: Vanilla JavaScript
+title: Using RDKit.js with Vanilla JavaScript
+menu: Vanilla JS
 permalink: /examples/vanilla-js/
 ---
-
-## Using RDKit.js with plain JavaScript
 
 The simplest way to use RDKit.js. Load the script tag, initialize the module, and start drawing molecules.
 

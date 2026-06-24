@@ -1,10 +1,10 @@
 ---
 layout: page
-title: Angular
+title: Using RDKit.js with Angular
+menu: Angular
 permalink: /examples/angular/
 ---
 
-## Using RDKit.js with Angular
 
 Two approaches: CDN script tag or NPM distribution with Angular's build config.
 

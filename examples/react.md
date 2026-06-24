@@ -1,10 +1,9 @@
 ---
 layout: page
-title: React
+title: Using RDKit.js with React
+menu: React
 permalink: /examples/react/
 ---
-
-## Using RDKit.js with React
 
 A reusable `MoleculeStructure` component handles RDKit loading, canvas/SVG rendering, and substructure highlighting.
 

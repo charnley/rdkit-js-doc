@@ -1,10 +1,9 @@
 ---
 layout: page
-title: Vue 3
+title: Using RDKit.js with Vue
+menu: Vue
 permalink: /examples/vue/
 ---
-
-## Using RDKit.js with Vue 3
 
 A `MoleculeStructure` component using Vue 3 Composition API (`<script setup>`) with TypeScript support.
 

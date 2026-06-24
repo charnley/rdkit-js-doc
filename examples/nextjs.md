@@ -1,10 +1,9 @@
 ---
 layout: page
-title: Next.js
+title: Using RDKit.js with Next.js
+menu: Next.js
 permalink: /examples/nextjs/
 ---
-
-## Using RDKit.js with Next.js
 
 Next.js requires special handling since RDKit.js uses WebAssembly and client-side only APIs.
 
