@@ -1,101 +1,62 @@
 ---
 layout: page
-title: Demo
+title: Getting Started with RDKit.js
 permalink: /demo/
 ---
 
 <script src="https://unpkg.com/@rdkit/rdkit/dist/RDKit_minimal.js"></script>
 
-<div id="molecule">
-  <div id="drawing"></div>
-  <div id="can_smiles"></div>
-</div>
+<p>Demo is using RDKit version: <strong id="rdkit-version">loading...</strong></p>
 
+<h2>Molecule Drawing</h2>
+
+<div id="drawing"></div>
+<div id="can_smiles"></div>
 <br>
 
 SMILES: <input id="smiles_input" type="text" value="CC(=O)Oc1ccccc1C(=O)O" onkeyup="callback(this.value,true)">
-SMARTS: <input id="smarts_input" type="text" value="" onkeyup="sma_callback(this.value)">
 
-<br>
+<h3>Canvas</h3>
+<canvas id="rdkit-canvas" width="400" height="300" style="border:1px solid #444;"></canvas>
 
-<h2>Computed values</h2>
+<h3>Computed values</h3>
 <div id="descrs"></div>
 
-<h2>HTML5 canvas</h2>
-<canvas id="rdkit-canvas" width="400" height="300" style="border:1px solid #000000;"></canvas>
-<br>
+<h2>Substructure Search</h2>
 
-<input type="checkbox" id="addAtomIndices" name="atomIndices" onclick="option_changed(this);">
-<label for="addAtomIndices">atomIndices</label>
-<input type="checkbox" id="addBondIndices" name="bondIndices" onclick="option_changed(this);">
-<label for="addBondIndices">bondIndices</label>
-<input type="checkbox" id="addStereoAnnotation" name="addStereoAnnotation" onclick="option_changed(this);">
-<label for="addStereoAnnotation">addStereoAnnotation</label>
-<br>
-<input type="checkbox" id="explicitMethyl" name="explicitMethyl" onclick="option_changed(this);">
-<label for="explicitMethyl">explicitMethyl</label>
-<br>
+SMARTS: <input id="smarts_input" type="text" value="" onkeyup="sma_callback(this.value)" placeholder="e.g. c1ccccc1">
 
-<input type="text" id="legend" onkeyup="option_changed(this);"><label for="legend">legend</label>
-<input type="text" id="legendFontSize" onkeyup="option_changed(this);"><label for="legendFontSize">legendFontSize</label>
-<br>
-<input type="number" id="bondLineWidth" onkeyup="option_changed(this);"><label for="bondLineWidth">bondLineWidth</label>
+<h2>Reactions</h2>
 
-<h2>Abbreviations</h2>
-<input type="checkbox" id="useAbbreviations" name="useAbbreviations" onclick="abbreviation_option_changed(this);">
-<label for="useAbbreviations">Use Abbreviations</label>
-<input type="checkbox" id="useLinkers" name="useLinkers" onclick="abbreviation_option_changed(this);">
-<label for="useLinkers">Use Linkers</label>
-<input type="text" id="maxCoverage" value="0.4" name="maxCoverage" onclick="abbreviation_option_changed(this);">
-<label for="maxCoverage">Max Coverage</label>
+...
 
-<h2>Template Mol Block</h2>
-<input type="checkbox" id="useCoordgen" name="use_coordgen" onclick="template_callback('');">
-<label for="useCoordgen">useCoordgen</label>
-<br>
-<textarea id="template_input" cols="80" rows="20" value="" onkeyup="template_callback(this.value)"></textarea>
+<h2>SubstructLibrary</h2>
+
+...
+
+<h2>R-Group Decomposition</h2>
+
+https://github.com/rdkit/rdkit/blob/master/Code/MinimalLib/demo/rgd_demo.html
 
 <script>
-  function form_to_details(details) {
-    var controls = ["addAtomIndices", "addBondIndices", "explicitMethyl", "addStereoAnnotation"];
-    for (i in controls) {
-      var control = controls[i];
-      details[control] = document.getElementById(control).checked
-    }
-    var texts = ["legend", "bondLineWidth", "legendFontSize"];
-    for (i in texts) {
-      var control = texts[i];
-      details[control] = document.getElementById(control).value
-    }
-  }
+  var RDKitModule;
 
-  function draw_with_highlights(mol, details) {
-    form_to_details(details);
-    var tdetails = JSON.stringify(details)
+  function drawMolecule(mol, details) {
+    details = details || {};
+    var tdetails = JSON.stringify(details);
     var svg = mol.get_svg_with_highlights(tdetails);
-    if (svg == "") return;
-    var ob = document.getElementById("drawing");
-    ob.outerHTML = "<div id='drawing'>" + svg + "</div>";
+    if (svg) {
+      var ob = document.getElementById("drawing");
+      ob.outerHTML = "<div id='drawing'>" + svg + "</div>";
+    }
     var canvas = document.getElementById("rdkit-canvas");
     mol.draw_to_canvas_with_highlights(canvas, tdetails);
   }
 
-  function draw(mol) {
-    var details = {};
-    draw_with_highlights(mol, details);
-    return;
-    var svg = mol.get_svg();
-    if (svg == "") return;
-    var ob = document.getElementById("drawing");
-    ob.outerHTML = "<div id='drawing'>" + svg + "</div>";
-    var canvas = document.getElementById("rdkit-canvas");
-    mol.draw_to_canvas(canvas, -1, -1);
-  }
-
   function callback(text, update_descrs) {
     var mol = RDKitModule.get_mol(text);
-    if (!!mol) {
-      draw(mol);
+    if (mol.is_valid()) {
+      drawMolecule(mol);
       var ob = document.getElementById("can_smiles");
       ob.outerHTML = "<div id='can_smiles'>" + mol.get_smiles() + "</div>";
       if (update_descrs) {
@@ -103,70 +64,29 @@ SMARTS: <input id="smarts_input" type="text" value="" onkeyup="sma_callback(this
         var db = document.getElementById("descrs");
         db.outerHTML = "<div id='descrs'>" +
           "<b>AMW:</b> " + descrs.amw +
-          "<br /><b>MolLogP:</b> " + descrs.CrippenClogP +
-          "<br /><b>MFP2:</b> " + mol.get_morgan_fp(2, 128) +
+          "<br><b>MolLogP:</b> " + descrs.CrippenClogP +
+          "<br><b>MFP2:</b> " + mol.get_morgan_fp(2, 128) +
           "</div>";
       }
-      mol.delete();
     }
+    mol.delete();
   }
 
   function sma_callback(text) {
     var qmol = RDKitModule.get_qmol(text);
     var mol = RDKitModule.get_mol(document.getElementById("smiles_input").value);
-    if (!!mol && !!qmol) {
+    if (mol.is_valid() && qmol.is_valid()) {
       var mdetails = mol.get_substruct_match(qmol);
       var match = JSON.parse(mdetails);
-      if (match.atoms && match.atoms.length) draw_with_highlights(mol, match);
-      mol.delete();
-      qmol.delete();
+      if (match.atoms && match.atoms.length) drawMolecule(mol, match);
     }
-  }
-
-  function template_callback(text) {
-    if(text==""){
-      text = document.getElementById("template_input").value;
-    }
-    var qmol = RDKitModule.get_mol(text);
-    var mol = RDKitModule.get_mol(document.getElementById("smiles_input").value);
-    if (!!mol && !!qmol) {
-      var mdetails = mol.get_substruct_match(qmol);
-      var match = JSON.parse(mdetails);
-      var useCoordgen = document.getElementById("useCoordgen").checked;
-      mol.generate_aligned_coords(qmol,useCoordgen);
-      if (match.atoms && match.atoms.length) draw_with_highlights(mol, match);
-      mol.delete();
-      qmol.delete();
-    }
-  }
-
-  function option_changed(cb) {
-    var smi = document.getElementById('smiles_input').value;
-    var sma = document.getElementById('smarts_input').value;
-    if (sma) {
-      sma_callback(sma);
-    } else {
-      callback(smi, false);
-    }
-  }
-
-  function abbreviation_option_changed(cb) {
-    var smi = document.getElementById('smiles_input').value;
-    var mol = RDKitModule.get_mol(smi);
-    if(document.getElementById('useAbbreviations').checked){
-      var useLinkers = document.getElementById('useLinkers').checked;
-      var maxCoverage = +(document.getElementById('maxCoverage').value);
-      mol.condense_abbreviations(maxCoverage,useLinkers);
-    }
-    draw(mol);
+    mol.delete();
+    qmol.delete();
   }
 
   initRDKitModule().then(function(instance) {
     RDKitModule = instance;
-    console.log('version: ' + RDKitModule.version());
-    var m1 = RDKitModule.get_mol("c1ccccc1O");
-    console.log('smiles: ' + m1.get_smiles());
-    m1.delete();
+    document.getElementById("rdkit-version").textContent = RDKitModule.version();
     callback("CC(=O)Oc1ccccc1C(=O)O");
   });
 </script>

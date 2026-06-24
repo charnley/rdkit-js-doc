@@ -13,8 +13,9 @@ The project leverages WebAssembly to expose a subset of the RDKit functionality 
 
 ```bash
 npm i @rdkit/rdkit
-# or
 yarn add @rdkit/rdkit
+pnpm i @rdkit/rdkit
+# ... etc
 ```
 
 ### Option 1: Copy distribution files
