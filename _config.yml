@@ -19,6 +19,9 @@ permalink: /:title:output_ext
 
 repository: charnley/rdkit-js-doc
 
+sass:
+  quiet_deps: true
+
 # Exclude from processing.
 exclude:
   - .sass-cache/
