@@ -5,207 +5,128 @@ menu: Next.js
 permalink: /examples/nextjs/
 ---
 
-Next.js requires special handling since RDKit.js uses WebAssembly and client-side only APIs.
+RDKit.js loads a `.wasm` module asynchronously.
+Turbopack (Next.js 16) needs `resolveAlias` to map the `.wasm` file.
+The rdkit package also tries `require("fs")` for Node.js detection, and although never called in the browser, it complains in the static code analysis.
 
-### Setup
+First, install an app
 
-Install the package:
-
-```bash
-npm i @rdkit/rdkit
+```sh
+mkdir project && cd project
+npx create-next-app@latest . --typescript --src-dir --app --no-tailwind --no-eslint
+pnpm i @rdkit/rdkit
 ```
 
-### Copy WASM file
+Configure `next.config.ts`.
+`serverExternalPackages` tells Next.js to skip bundling `@rdkit/rdkit` on the server.
+`resolveAlias` maps the `.wasm` file so Emscripten can find it in the browser.
 
-Use a custom webpack config to copy the WASM file to your public directory:
+The dummy is only for the browser bundle where fs doesn't exist.
+And the `fs` alias is added and linked to a dummy function 
 
-```js
-// next.config.js
-const CopyWebpackPlugin = require("copy-webpack-plugin");
+```ts
+// ./next.config.ts
+import type { NextConfig } from "next";
 
-module.exports = {
-  webpack: (config) => {
-    config.plugins.push(
-      new CopyWebpackPlugin({
-        patterns: [
-          {
-            from: "node_modules/@rdkit/rdkit/dist/RDKit_minimal.wasm",
-            to: "static/chunks/pages"
-          }
-        ]
-      })
-    );
-    return config;
-  }
+const nextConfig: NextConfig = {
+  serverExternalPackages: ["@rdkit/rdkit"],
+  turbopack: {
+    resolveAlias: {
+      "RDKit_minimal.wasm": "./node_modules/@rdkit/rdkit/dist/RDKit_minimal.wasm",
+      fs: "./src/lib/dummy.ts",
+    },
+  },
 };
+
+export default nextConfig;
 ```
 
-### MoleculeStructure component
+Where the dummy simply looks like
 
-Because RDKit relies on `window` and DOM APIs, use dynamic import with `ssr: false`:
+```ts
+// src/lib/dummy.ts
+export default {};
+```
 
-{% raw %}
-```jsx
-import React, { Component } from "react";
-import PropTypes from "prop-types";
-import initRDKitModule from "@rdkit/rdkit";
+For the the frontend `"use client"` skips SSR.
+`new URL("...", import.meta.url)` tells Turbopack to bundle the `.wasm`, then `locateFile` points at the bundled URL
 
-const initRDKit = (() => {
-  let rdkitLoadingPromise;
+```tsx
+// src/app/rdkit-mol.tsx
+"use client";
 
-  return () => {
-    if (!rdkitLoadingPromise) {
-      rdkitLoadingPromise = new Promise((resolve, reject) => {
-        initRDKitModule()
-          .then((RDKit) => resolve(RDKit))
-          .catch(() => reject());
-      });
-    }
-    return rdkitLoadingPromise;
-  };
-})();
+import { useEffect, useState } from "react";
+import type { RDKitModule } from "@rdkit/rdkit";
+import _initRDKitModule from "@rdkit/rdkit";
 
-class MoleculeStructure extends Component {
-  static propTypes = {
-    id: PropTypes.string.isRequired,
-    structure: PropTypes.string.isRequired,
-    subStructure: PropTypes.string,
-    svgMode: PropTypes.bool,
-    width: PropTypes.number,
-    height: PropTypes.number,
-    extraDetails: PropTypes.object
-  };
+const initRDKitModule = _initRDKitModule as unknown as (
+  options?: { locateFile?: () => string }
+) => Promise<RDKitModule>;
 
-  static defaultProps = {
-    subStructure: "",
-    svgMode: false,
-    width: 250,
-    height: 200,
-    extraDetails: {}
-  };
+const wasmUrl = new URL("RDKit_minimal.wasm", import.meta.url).href;
 
-  constructor(props) {
-    super(props);
-    this.MOL_DETAILS = {
-      width: this.props.width,
-      height: this.props.height,
+export default function RdkitMol() {
+  const [RDKit, setRDKit] = useState<RDKitModule | null>(null);
+
+  useEffect(() => {
+    initRDKitModule({ locateFile: () => wasmUrl }).then(setRDKit);
+  }, []);
+
+  if (!RDKit) return <div>Loading RDKit...</div>;
+
+  const mol = RDKit.get_mol("CC(=O)Oc1ccccc1C(=O)O");
+  if (!mol) return <div>Invalid molecule</div>;
+
+  const svg = mol.get_svg_with_highlights(
+    JSON.stringify({
+      width: 400,
+      height: 300,
       bondLineWidth: 1,
       addStereoAnnotation: true,
-      ...this.props.extraDetails
-    };
-    this.state = {
-      svg: undefined,
-      rdKitLoaded: false,
-      rdKitError: false
-    };
-  }
+    })
+  );
+  mol.delete();
 
-  componentDidMount() {
-    initRDKit()
-      .then((RDKit) => {
-        this.RDKit = RDKit;
-        this.setState({ rdKitLoaded: true });
-        this.draw();
-      })
-      .catch(() => this.setState({ rdKitError: true }));
-  }
-
-  draw() {
-    const mol = this.RDKit.get_mol(this.props.structure || "invalid");
-    const qmol = this.RDKit.get_qmol(this.props.subStructure || "invalid");
-
-    if (this.props.svgMode && mol) {
-      const svg = mol.get_svg_with_highlights(this.getMolDetails(mol, qmol));
-      this.setState({ svg });
-    } else if (mol) {
-      const canvas = document.getElementById(this.props.id);
-      mol.draw_to_canvas_with_highlights(canvas, this.getMolDetails(mol, qmol));
-    }
-
-    mol?.delete();
-    qmol?.delete();
-  }
-
-  getMolDetails(mol, qmol) {
-    if (mol && qmol) {
-      const matches = JSON.parse(mol.get_substruct_matches(qmol));
-      const merged = matches.reduce(
-        (acc, { atoms, bonds }) => ({
-          atoms: [...acc.atoms, ...atoms],
-          bonds: [...acc.bonds, ...bonds]
-        }),
-        { bonds: [], atoms: [] }
-      );
-      return JSON.stringify({ ...this.MOL_DETAILS, ...merged });
-    }
-    return JSON.stringify(this.MOL_DETAILS);
-  }
-
-  render() {
-    if (this.state.rdKitError) return "Error loading renderer.";
-    if (!this.state.rdKitLoaded) return "Loading renderer...";
-
-    if (this.props.svgMode) {
-      return (
-        <div
-          className="molecule-structure-svg"
-          style={{ width: this.props.width, height: this.props.height }}
-          dangerouslySetInnerHTML={{ __html: this.state.svg }}
-        />
-      );
-    }
-
-    return (
-      <canvas
-        id={this.props.id}
-        width={this.props.width}
-        height={this.props.height}
-      />
-    );
-  }
+  return <div dangerouslySetInnerHTML={{ __html: svg }} />;
 }
-
-export default MoleculeStructure;
 ```
-{% endraw %}
 
-### Dynamic import with SSR disabled
+Which can be used on a page
 
-In your page component, import MoleculeStructure dynamically:
-
-```jsx
-// pages/index.js
-import dynamic from "next/dynamic";
-
-const MoleculeStructure = dynamic(
-  () => import("../components/MoleculeStructure/MoleculeStructure"),
-  { ssr: false }
-);
+```tsx
+// src/app/page.tsx
+import RdkitMol from "./rdkit-mol";
 
 export default function Home() {
   return (
-    <div>
-      <MoleculeStructure
-        id="mol1"
-        structure="CC(=O)Oc1ccccc1C(=O)O"
-        width={300}
-        height={250}
-      />
-    </div>
+    <main>
+      <h1>RDKit.js + Next.js</h1>
+      <RdkitMol />
+    </main>
   );
 }
 ```
 
-### Key differences from React
+## RDKit on server-side (API route)
 
-1. **Module import**: Uses `import initRDKitModule from "@rdkit/rdkit"` directly (Node import), not `window.initRDKitModule` from a script tag
-2. **RDKit on instance**: Store the RDKit instance on `this.RDKit` instead of `window.RDKit` — avoids polluting global scope in SSR context
-3. **No SSR**: The component must only render on the client. Use `dynamic(() => import(...), { ssr: false })`
-4. **WASM path**: The `locateFile` option may be needed if the WASM file isn't auto-detected:
+With `serverExternalPackages`, Node.js runs `@rdkit/rdkit` natively, which finds the `.wasm` next to the `.js` file in `node_modules`:
 
-```js
-initRDKitModule({ locateFile: () => "/static/chunks/pages/RDKit_minimal.wasm" })
+```ts
+// src/app/api/rdkit/route.ts
+import { NextResponse } from "next/server";
+import initRDKitModule from "@rdkit/rdkit"
+
+export async function GET() {
+  const RDKit = await initRDKitModule();
+
+  const mol = RDKit.get_mol("CC(=O)Oc1ccccc1C(=O)O");
+  const molblock = mol.get_molblock();
+  mol.delete();
+
+  return NextResponse.json({
+    version: RDKit.version(),
+    molblock,
+  });
+}
 ```
-
-
 
