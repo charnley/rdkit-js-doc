@@ -34,6 +34,8 @@ Or use the CDN, by adding this script tag to your HTML
 RDKit is a C++ library that has been compiled to WebAssembly (WASM), allowing it to run in browsers and Node.js.
 Loading the JavaScript bundle exposes `initRDKitModule()`, which initializes the WASM module and returns an RDKit library object.
 
+- [ ] TODO Note on SINGLE_FILE=1, cannot be used because rdkit is binary is a bit large, better seperate
+
 RDKit runs in its own WASM memory space, separate from JavaScript memory.
 The module can be loaded inside a Web Worker to perform computationally intensive operations without blocking the main thread.
 
@@ -56,7 +58,14 @@ const GlobalRDKit = await initRDKitModule();
 ```
 
 When you want to use RDKit with different bundlers or frameworks, some tricks are needed.
-See the examples for each framework.
+See the examples for each framework. Usually this means you can either;
+
+- [ ] TODO Explain the different standard approaches
+
+1. Custom Vite plugin (this repo's approach) — serve/copy .wasm from node_modules. Avoids manual copy, keeps dist/ clean for rebuilds.
+1. CDN-hosted — .wasm on external URL, locateFile points there. No build dependency but needs internet.
+1. ESM-integrated (newer) — some WASM toolchains emit .js + .wasm as ES module imports. Vite can handle these natively with ?url suffix or top-level await.
+1. Copy `.wasm` to a `public/` — .wasm file in public/ or dist/, fetched at runtime. Simplest. No tooling needed.
 
 ## Quick Start
 
