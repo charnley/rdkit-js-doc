@@ -46,7 +46,6 @@ import { getRDKit } from '$lib/rdkitUtils.js';
 
 Minimal Svelte 5 component that renders a molecule as SVG.
 
-{% raw %}
 ```svelte
 <!-- src/routes/example-page/MoleculeStructure.svelte -->
 <script>
@@ -58,10 +57,14 @@ Minimal Svelte 5 component that renders a molecule as SVG.
   let loaded = $state(false);
   let error = $state('');
 
+  // TODO use derived instead, more svelte friendly
+
   $effect(() => {
-    structure; width; height;
+    structure;
     loadAndDraw();
   });
+
+  // Set rdkit onLoad, more svelte friendly
 
   async function loadAndDraw() {
     try {
@@ -96,11 +99,12 @@ Minimal Svelte 5 component that renders a molecule as SVG.
 
 <style>
   .mol-svg :global(svg) { width: 100%; height: 100%; }
+  .mol-svg :global(svg) :global(rect:first-of-type) {
+        fill: transparent !important;
+  }
 </style>
 ```
-{% endraw %}
 
-{% raw %}
 ```svelte
 <!-- src/routes/example-page/+page.svelte -->
 <script>
@@ -109,5 +113,4 @@ Minimal Svelte 5 component that renders a molecule as SVG.
 
 <MoleculeStructure structure="CC(=O)Oc1ccccc1C(=O)O" width={300} height={250} />
 ```
-{% endraw %}
 
