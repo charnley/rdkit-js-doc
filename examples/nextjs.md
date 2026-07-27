@@ -12,8 +12,8 @@ The rdkit package also tries `require("fs")` for Node.js detection, and although
 First, install an app
 
 ```sh
-mkdir project && cd project
-npx create-next-app@latest . --typescript --src-dir --app --no-tailwind --no-eslint
+npx create-next-app@latest project_name --typescript --src-dir --app --no-tailwind --no-eslint
+cd project_name
 pnpm i @rdkit/rdkit
 ```
 
@@ -107,9 +107,9 @@ export default function Home() {
 }
 ```
 
-## RDKit on server-side (API route)
+## RDKit Next.js server-side
 
-With `serverExternalPackages`, Node.js runs `@rdkit/rdkit` natively, which finds the `.wasm` next to the `.js` file in `node_modules`:
+So if you have a next.js API route, with `serverExternalPackages`, Node.js runs `@rdkit/rdkit` natively, which finds the `.wasm` next to the `.js` file in `node_modules`:
 
 ```ts
 // src/app/api/rdkit/route.ts
@@ -117,7 +117,7 @@ import { NextResponse } from "next/server";
 import initRDKitModule from "@rdkit/rdkit"
 
 export async function GET() {
-  const RDKit = await initRDKitModule();
+  const RDKit = await initRDKitModule(); // Will find the wasm
 
   const mol = RDKit.get_mol("CC(=O)Oc1ccccc1C(=O)O");
   const molblock = mol.get_molblock();
@@ -129,4 +129,3 @@ export async function GET() {
   });
 }
 ```
-
