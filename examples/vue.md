@@ -5,233 +5,141 @@ menu: Vue
 permalink: /examples/vue/
 ---
 
-A `MoleculeStructure` component using Vue 3 Composition API (`<script setup>`) with TypeScript support.
+Minimal Vue 3 + TypeScript + Vite app demonstrating RDKit.js usage.
 
-### Setup
-
-Load the RDKit script in `index.html`:
-
-```html
-<head>
-  <script src="https://unpkg.com/@rdkit/rdkit/dist/RDKit_minimal.js"></script>
-</head>
+```bash
+npm create vite@latest project_name -- --template vue-ts
+cd project_name
+npm install @rdkit/rdkit
 ```
 
-### TypeScript declarations
+No Vite config change is needed — `?url` is default Vite behavior.
+The whole WASM wiring lives in `src/rdkit.ts` below: `?url` resolves the `.wasm` to a URL string (dev: `node_modules/...`; prod: hashed asset), and `locateFile` tells emscripten's loader to fetch it there.
+The `locateFile` override is the only WASM-specific bit, without it emscripten looks next to `import.meta.url` which does not exist after bundling.
 
-Declare the global types:
+```ts
+// src/rdkit.ts
+import initRDKitModule, { type MainModule, type Mol } from '@rdkit/rdkit'
+import wasmUrl from '@rdkit/rdkit/RDKit_minimal.wasm?url'
 
-```typescript
-// globals.d.ts
-import { RDKitModule, RDKitLoader } from "@rdkit/rdkit";
+export type { MainModule, Mol }
 
-declare global {
-  interface Window {
-    RDKit: RDKitModule;
-    initRDKitModule: RDKitLoader;
-  }
+let rdkit: MainModule | null = null
+let loading: Promise<MainModule> | null = null
+
+export function getRDKit(): Promise<MainModule> {
+  if (rdkit) return Promise.resolve(rdkit)
+  if (!loading) loading = initRDKitModule({ locateFile: () => wasmUrl })
+  return loading.then((m) => {
+    rdkit = m
+    return m
+  })
 }
 ```
 
-### initRDKit singleton
-
-`src/utils/initRDKit.ts`:
-
-```typescript
-import { RDKitModule } from "@rdkit/rdkit";
-
-const initRDKit = (() => {
-  let rdkitLoadingPromise: Promise<RDKitModule>;
-
-  return () => {
-    if (!rdkitLoadingPromise) {
-      rdkitLoadingPromise = new Promise((resolve, reject) => {
-        window
-          .initRDKitModule()
-          .then((RDKit) => {
-            window.RDKit = RDKit;
-            resolve(RDKit);
-          })
-          .catch((e) => {
-            reject();
-          });
-      });
-    }
-    return rdkitLoadingPromise;
-  };
-})();
-
-export default initRDKit;
-```
-
-### MoleculeStructure.vue
+`getRDKit()` instantiates the WASM module once and reuses it across every caller.
+Example structure render using the rdkit object from ´getRDKit' could be something like
 
 ```vue
-<template>
-  <p v-if="rdkitError">Error loading renderer</p>
-  <p v-if="!rdkitLoaded">Loading renderer</p>
-
-  <span
-    v-else-if="!isValidMol"
-    :title="`Cannot render structure: ${structure}`"
-  />
-
-  <div
-    v-else-if="svgMode"
-    :class="`molecule-structure-svg ${className}`"
-    :style="{ width: `${width}px`, height: `${height}px` }"
-    v-html="svg"
-  />
-
-  <div v-else :class="`molecule-canvas-container ${className}`">
-    <canvas
-      :title="structure"
-      :id="id"
-      :width="width"
-      :height="height"
-    />
-  </div>
-</template>
-
+// src/components/MoleculeStructure.vue
 <script setup lang="ts">
-import { nextTick, onMounted, reactive, ref, watch } from "vue";
-import { JSMol } from "@rdkit/rdkit";
-import initRDKit from "../utils/initRDKit";
+import { ref, watch, onBeforeUnmount } from 'vue'
+import { getRDKit, type Mol } from '../rdkit'
 
-const props = defineProps({
-  id: { type: String, required: true },
-  className: { type: String, default: "" },
-  svgMode: { type: Boolean, default: false },
-  width: { type: Number, default: 250 },
-  height: { type: Number, default: 200 },
-  structure: { type: String, required: true },
-  subStructure: { type: String, default: "" },
-  extraDetails: { type: Object, default: {} },
-  drawingDelay: { type: Number, default: undefined }
-});
+const props = withDefaults(defineProps<{
+  smiles: string
+  width?: number
+  height?: number
+}>(), { width: 300, height: 300 })
 
-let rdkitLoaded = ref(false);
-let rdkitError = ref(false);
-const svg = ref("");
-const molDetails = reactive({
-  width: props.width,
-  height: props.height,
-  bondLineWidth: 1,
-  addStereoAnnotation: true,
-  ...props.extraDetails
-});
+const svg = ref('')
+const loaded = ref(false)
+const error = ref('')
 
-const isValidMol = ref(true);
-
-function isValid(m: JSMol | null) {
-  return !!m;
-}
-
-function getMolDetails(mol: JSMol | null, qmol: JSMol | null) {
-  if (isValid(mol) && isValid(qmol)) {
-    const details = JSON.parse(mol!.get_substruct_matches(qmol!) || "[]");
-    const merged = details.length
-      ? details.reduce(
-          (acc: any, { atoms, bonds }: any) => ({
-            atoms: [...acc.atoms, ...atoms],
-            bonds: [...acc.bonds, ...bonds]
-          }),
-          { atoms: [], bonds: [] }
-        )
-      : details;
-    return JSON.stringify({
-      ...molDetails,
-      ...(props.extraDetails || {}),
-      ...merged
-    });
-  }
-  return JSON.stringify({
-    ...molDetails,
-    ...(props.extraDetails || {})
-  });
-}
+let mol: Mol | null = null
 
 async function draw() {
-  const mol = window.RDKit.get_mol(props.structure || "invalid");
-  const qmol = window.RDKit.get_qmol(props.subStructure || "invalid");
-
-  isValidMol.value = isValid(mol);
-
-  if (props.svgMode && isValidMol.value) {
-    svg.value = mol!.get_svg_with_highlights(getMolDetails(mol, qmol));
-  } else if (isValidMol.value) {
-    await nextTick();
-    const canvas = document.getElementById(props.id) as HTMLCanvasElement;
-    mol!.draw_to_canvas_with_highlights(canvas, getMolDetails(mol, qmol));
+  error.value = ''
+  try {
+    const rdkit = await getRDKit()
+    mol?.delete()
+    mol = rdkit.get_mol(props.smiles || 'invalid')
+    if (!mol) {
+      loaded.value = false
+      error.value = `Cannot parse: ${props.smiles}`
+      return
+    }
+    svg.value = mol.get_svg_with_highlights(
+      JSON.stringify({ width: props.width, height: props.height }),
+    )
+    loaded.value = true
+  } catch (e) {
+    loaded.value = false
+    error.value = e instanceof Error ? e.message : String(e)
   }
-
-  mol?.delete();
-  qmol?.delete();
 }
 
-onMounted(() => {
-  initRDKit()
-    .then(() => {
-      rdkitLoaded.value = true;
-      draw();
-    })
-    .catch(() => {
-      rdkitError.value = true;
-    });
-});
+watch(() => props.smiles, draw, { immediate: true })
 
-watch(props, () => {
-  if (rdkitLoaded.value) draw();
-});
+onBeforeUnmount(() => mol?.delete())
 </script>
 
-<style>
-.molecule-structure-svg svg rect:first-of-type {
-  fill: transparent !important;
-}
+<template>
+  <p v-if="error" class="error">{{ error }}</p>
+  <p v-else-if="!loaded">Loading…</p>
+  <div
+    v-else
+    class="mol-svg"
+    :style="{ width: `${width}px`, height: `${height}px` }"
+    v-html="svg"
+  ></div>
+</template>
+
+<style scoped>
+.mol-svg :deep(svg) { width: 100%; height: 100%; }
+.mol-svg :deep(svg rect:first-of-type) { fill: transparent !important; }
+.error { color: #c0392b; }
 </style>
 ```
 
-### Usage
+Example usage
 
 ```vue
+// `src/App.vue`
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import MoleculeStructure from './components/MoleculeStructure.vue'
+import { getRDKit } from './rdkit.ts'
+
+const smiles = ref('CC(=O)Oc1ccccc1C(=O)O')
+const version = ref('')
+
+onMounted(async () => {
+  version.value = (await getRDKit()).version()
+})
+</script>
+
 <template>
-  <div>
-    <MoleculeStructure
-      id="mol1"
-      structure="CC(=O)Oc1ccccc1C(=O)O"
-      :width="300"
-      :height="250"
-    />
-    <MoleculeStructure
-      id="mol2"
-      structure="c1ccccc1"
-      subStructure="c1ccccc1"
-      :svgMode="true"
-      :width="300"
-      :height="250"
-    />
-  </div>
+  <main class="app">
+    <h1>RDKit.js + Vue</h1>
+    <p v-if="version">RDKit version: <code>{{ version }}</code></p>
+    <p v-else>Loading RDKit WASM…</p>
+
+    <label>
+      SMILES
+      <input v-model="smiles" spellcheck="false" placeholder="e.g. CCO" />
+    </label>
+
+    <MoleculeStructure :smiles="smiles" :width="300" :height="250" />
+  </main>
 </template>
 
-<script setup lang="ts">
-import MoleculeStructure from "./components/MoleculeStructure.vue";
-</script>
+<style scoped>
+.app { display: flex; flex-direction: column; align-items: center; gap: 20px; padding: 40px 20px; }
+label { display: flex; flex-direction: column; gap: 6px; align-items: center; }
+input { font: 15px ui-monospace, Consolas, monospace; padding: 8px 12px; width: 320px; }
+</style>
 ```
 
-### Props
-
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `id` | String | required | Unique ID for canvas element |
-| `structure` | String | required | SMILES string to render |
-| `subStructure` | String | `""` | SMARTS for substructure highlighting |
-| `svgMode` | Boolean | `false` | Render as SVG instead of canvas |
-| `width` | Number | `250` | Width in pixels |
-| `height` | Number | `200` | Height in pixels |
-| `extraDetails` | Object | `{}` | Extra `MolDrawOptions` to merge |
-| `className` | String | `""` | CSS class for container |
-| `drawingDelay` | Number | `undefined` | Delay before drawing (ms) |
-
-
+Which will show a molecule from the vue scaffold setup.
 

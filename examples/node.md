@@ -9,20 +9,16 @@ Minimal example showing how to run RDKit WebAssembly build in a Node.js environm
 Using `Node.js >= 18`, 
 
 First initialize `package.json` with ESM, by setting `"type": "module"` in `package.json`.
-For example a `package.json`:
 
-```json
+```jsonc
+// package.json
 {
   "name": "rdkit-minimal-nodejs-example",
-  "version": "1.0.0",
-  "description": "Minimal Node.js example using RDKit WASM",
   "type": "module",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
-  "keywords": ["rdkit", "wasm", "nodejs", "chemistry"],
-  "license": "BSD-3-Clause"
 }
 ```
 

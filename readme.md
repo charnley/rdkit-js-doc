@@ -100,6 +100,8 @@ document.getElementById("drawing").innerHTML = svg;
 mol.delete(); // always free memory when done
 ```
 
+`mol.delete()` frees the WASM-side object, as emscripten allocations are not garbage-collected.
+
 ## License
 
 The binary is compiled directly from RDKit, so license is unchanged.
