@@ -6,39 +6,40 @@ permalink: /examples/angular/
 ---
 
 
-Two approaches: CDN script tag or NPM distribution with Angular's build config.
+Angular's esbuild bundler needs two tricks:
+copy the `.wasm` file to the build output, and tell esbuild to ignore a
+Node-only import that emscripten leaves in the JS glue (dead code in browser).
 
-### Option 1: CDN (recommended)
-
-Add to `src/index.html`:
-
-```html
-<head>
-  <script src="https://unpkg.com/@rdkit/rdkit/dist/RDKit_minimal.js"></script>
-</head>
+```bash
+npx @angular/cli new project_name --style=css --routing=false --skip-git --skip-tests --ssr=false
+cd project_name
+npm i @rdkit/rdkit
 ```
 
-### Option 2: NPM distribution
+First configure `angular.json`.
+Add the `.wasm` file to `assets` so Angular copies it to the build output.
+Add `node:module` to `externalDependencies` so esbuild does not try to resolve the Node-only code inside `RDKit_minimal.js`.
 
-In `angular.json`, add the JS file to `scripts` and the WASM file to `assets`:
+`externalDependencies` tells esbuild: "do not try to resolve this import, leave it alone."
+The browser then runs the file, skips the dead Node code, and the factory works.
 
-```json
+```jsonc
+// angular.json
 {
   "projects": {
-    "your-app": {
+    "rdkit-angular": {
       "architect": {
         "build": {
           "options": {
-            "scripts": [
-              "node_modules/@rdkit/rdkit/dist/RDKit_minimal.js"
-            ],
             "assets": [
+              { "glob": "**/*", "input": "public" },
               {
                 "glob": "RDKit_minimal.wasm",
-                "input": "node_modules/@rdkit/rdkit/dist/",
+                "input": "node_modules/@rdkit/rdkit/dist",
                 "output": "/"
               }
-            ]
+            ],
+            "externalDependencies": ["node:module"]
           }
         }
       }
@@ -47,183 +48,116 @@ In `angular.json`, add the JS file to `scripts` and the WASM file to `assets`:
 }
 ```
 
-### RDKit loader service
+In practise it means we can write a small service wrapper class that loads the rdkit import.
+You can then initialize rdkit with `initRDKitModule()`
+which assumes root-level `.wasm` path, which is set but the above configuration.
 
-Use an Angular service with `ReplaySubject` to manage the RDKit module lifecycle:
+```ts
+// src/app/rdkit.service.ts
+import { Injectable, signal } from '@angular/core';
+import type { MainModule } from '@rdkit/rdkit';
 
-```typescript
-import { Injectable, OnDestroy } from "@angular/core";
-import { Observable, ReplaySubject } from "rxjs";
-import { first } from "rxjs/operators";
+@Injectable({ providedIn: 'root' })
+export class RdkitService {
+  private module: MainModule | null = null;
+  readonly ready = signal(false);
+  readonly error = signal<string | null>(null);
 
-declare global {
-  interface Window {
-    initRDKitModule: any;
-  }
-}
-
-@Injectable({ providedIn: "root" })
-export class RDKitLoaderService implements OnDestroy {
-  private rdkitSubject$!: ReplaySubject<any>;
-
-  ngOnDestroy(): void {
-    this.rdkitSubject$.complete();
-  }
-
-  getRDKit(): Observable<any> {
-    if (!this.rdkitSubject$) {
-      this.rdkitSubject$ = new ReplaySubject(1);
-      window.initRDKitModule().then(
-        (instance: any) => this.rdkitSubject$.next(instance),
-        (error: any) => this.rdkitSubject$.error(error)
-      );
+  async init(): Promise<MainModule> {
+    if (this.module) return this.module;
+    try {
+      const factory = (await import('@rdkit/rdkit')).default;
+      this.module = await factory({
+        locateFile: (path: string) => `/${path}`,
+      });
+      this.ready.set(true);
+      return this.module;
+    } catch (err) {
+      this.error.set(err instanceof Error ? err.message : String(err));
+      throw err;
     }
-    return this.rdkitSubject$.asObservable().pipe(first());
+  }
+
+  get(): MainModule {
+    if (!this.module) throw new Error('RDKit not initialized');
+    return this.module;
   }
 }
 ```
 
-### Canvas renderer component
+Which can then be used in a component like
 
-```typescript
-import { Component, Input, OnInit, AfterViewInit, OnDestroy } from "@angular/core";
-import { RDKitLoaderService } from "../rdkit-loader/rdkit-loader.service";
+```ts
+// src/app/app.ts
+import { Component, inject, signal, ViewEncapsulation } from '@angular/core';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { RdkitService } from './rdkit.service';
 
 @Component({
-  selector: "app-canvas-renderer",
-  template: `<canvas [id]="id" [width]="width" [height]="height"></canvas>`
+  selector: 'app-root',
+  imports: [],
+  templateUrl: './app.html',
+  styleUrl: './app.css',
+  encapsulation: ViewEncapsulation.None,
 })
-export class CanvasRendererComponent implements OnInit, OnDestroy {
-  @Input() id!: string;
-  @Input() structure!: string;
-  @Input() subStructure: string = "";
-  @Input() width: number = 250;
-  @Input() height: number = 200;
+export class App {
+  private readonly rdkit = inject(RdkitService);
+  private readonly sanitizer = inject(DomSanitizer);
 
-  private rdkit: any;
-  private sub: any;
+  protected readonly ready = this.rdkit.ready;
+  protected readonly error = this.rdkit.error;
+  protected readonly smiles = signal('CCO');
+  protected readonly svg = signal<SafeHtml>('');
+  protected readonly info = signal<string>('');
 
-  constructor(private rdkitService: RDKitLoaderService) {}
-
-  ngOnInit() {
-    this.sub = this.rdkitService.getRDKit().subscribe((rdkit: any) => {
-      this.rdkit = rdkit;
-      this.draw();
-    });
+  constructor() {
+    this.rdkit.init().then(() => this.render()).catch(() => {});
   }
 
-  draw() {
-    const mol = this.rdkit.get_mol(this.structure || "invalid");
-    if (!mol) return;
-
-    const canvas = document.getElementById(this.id) as HTMLCanvasElement;
-
-    if (this.subStructure) {
-      const qmol = this.rdkit.get_qmol(this.subStructure);
-      if (qmol) {
-        const details = mol.get_substruct_match(qmol);
-        mol.draw_to_canvas_with_highlights(canvas, details);
-        qmol.delete();
-      }
-    } else {
-      mol.draw_to_canvas(canvas, -1, -1);
+  render(): void {
+    if (!this.ready()) return;
+    const module = this.rdkit.get();
+    const mol = module.get_mol(this.smiles());
+    if (!mol || !mol.is_valid()) {
+      this.svg.set('');
+      this.info.set('Invalid SMILES');
+      mol?.delete();
+      return;
     }
-
+    this.svg.set(this.sanitizer.bypassSecurityTrustHtml(mol.get_svg(300, 300)));
+    this.info.set(`SMILES: ${mol.get_smiles()}\nMolblock:\n${mol.get_molblock()}`);
     mol.delete();
   }
 
-  ngOnDestroy() {
-    this.sub?.unsubscribe();
+  onInput(event: Event): void {
+    this.smiles.set((event.target as HTMLInputElement).value);
+    this.render();
   }
 }
 ```
-
-### SVG renderer component
-
-```typescript
-import { Component, Input, OnInit, OnDestroy } from "@angular/core";
-import { RDKitLoaderService } from "../rdkit-loader/rdkit-loader.service";
-import { DomSanitizer, SafeHtml } from "@angular/platform-browser";
-
-@Component({
-  selector: "app-svg-renderer",
-  template: `<div [innerHTML]="svgContent"></div>`
-})
-export class SvgRendererComponent implements OnInit, OnDestroy {
-  @Input() id!: string;
-  @Input() structure!: string;
-  @Input() subStructure: string = "";
-  @Input() width: number = 250;
-  @Input() height: number = 200;
-
-  svgContent!: SafeHtml;
-  private rdkit: any;
-  private sub: any;
-
-  constructor(
-    private rdkitService: RDKitLoaderService,
-    private sanitizer: DomSanitizer
-  ) {}
-
-  ngOnInit() {
-    this.sub = this.rdkitService.getRDKit().subscribe((rdkit: any) => {
-      this.rdkit = rdkit;
-      this.draw();
-    });
-  }
-
-  draw() {
-    const mol = this.rdkit.get_mol(this.structure || "invalid");
-    if (!mol) return;
-
-    let svg: string;
-    if (this.subStructure) {
-      const qmol = this.rdkit.get_qmol(this.subStructure);
-      const details = mol.get_substruct_match(qmol);
-      svg = mol.get_svg_with_highlights(details);
-      qmol?.delete();
-    } else {
-      svg = mol.get_svg();
-    }
-
-    this.svgContent = this.sanitizer.bypassSecurityTrustHtml(svg);
-    mol.delete();
-  }
-
-  ngOnDestroy() {
-    this.sub?.unsubscribe();
-  }
-}
-```
-
-### Usage in templates
 
 ```html
-<!-- Canvas -->
-<app-canvas-renderer
-  id="mol1"
-  structure="CC(=O)Oc1ccccc1C(=O)O"
-  [width]="300"
-  [height]="250"
-></app-canvas-renderer>
+<!-- src/app/app.html -->
+<main class="container">
+  <h1>RDKit.js + Angular</h1>
 
-<!-- Substructure highlight -->
-<app-canvas-renderer
-  id="mol2"
-  structure="CC(=O)Oc1ccccc1C(=O)O"
-  subStructure="c1ccccc1"
-  [width]="300"
-  [height]="250"
-></app-canvas-renderer>
+  @if (error()) {
+    <p class="error">Failed to load RDKit: {{ error() }}</p>
+  } @else if (!ready()) {
+    <p>Loading RDKit WASM…</p>
+  } @else {
+    <label>
+      SMILES:
+      <input type="text" [value]="smiles()" (input)="onInput($event)" />
+    </label>
 
-<!-- SVG -->
-<app-svg-renderer
-  id="mol3"
-  structure="CC(=O)Oc1ccccc1C(=O)O"
-  [width]="300"
-  [height]="250"
-></app-svg-renderer>
+    @if (svg()) {
+      <div class="drawing" [innerHTML]="svg()"></div>
+    }
+
+    @if (info()) {
+      <pre>{{ info() }}</pre>
+    }
+  }
+</main>
 ```
-
-
-

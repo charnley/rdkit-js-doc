@@ -72,6 +72,7 @@ const GlobalRDKit = await initRDKitModule();
 
 When you want to use RDKit with different bundlers or frameworks, some tricks are needed.
 Usually a trick is needed to make the `.wasm` file available as a standalone file, but it really varies.
+Also, because of the output `.js` file does some node checks, the bundlers have problems with node (not javascript) specific functions.
 We have created examples for Vanilla JS, React, Vue, Angular, Svelte, Next.js and Node.js.
 However, these are not RDKit specifc hacks, but generically how you setup WASM support for those frameworks.
 
@@ -81,6 +82,12 @@ However, these are not RDKit specifc hacks, but generically how you setup WASM s
 1. CDN-hosted — .wasm on external URL, locateFile points there. No build dependency but needs internet.
 1. ESM-integrated (newer) — some WASM toolchains emit .js + .wasm as ES module imports. Vite can handle these natively with ?url suffix or top-level await.
 1. Copy `.wasm` to a `public/` — .wasm file in public/ or dist/, fetched at runtime. Simplest. No tooling needed.
+
+
+This branch is dead in the browser (the `if` is false at runtime). But
+esbuild parses the file at build time and tries to resolve every `import`
+it sees, including `"node:module"`. The build fails because `node:` built-ins
+do not exist in a browser bundle.
 
 ## Getting started
 
