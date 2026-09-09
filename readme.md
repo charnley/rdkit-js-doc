@@ -10,33 +10,31 @@ permalink: /
 [![NPM Yearly Downloads](https://img.shields.io/npm/dy/@rdkit/rdkit)](https://www.npmjs.com/package/@rdkit/rdkit)
 [![NPM Total Downloads](https://img.shields.io/npm/dt/@rdkit/rdkit?label=total%20downloads)](https://www.npmjs.com/package/@rdkit/rdkit)
 
-RDKit.js is the official JavaScript distribution of cheminformatics functionality from the [RDKit](https://github.com/rdkit/rdkit) - a C++ library for cheminformatics.
+RDKit.js is the official JavaScript distribution of cheminformatics functionality from the [RDKit](https://github.com/rdkit/rdkit),
+a C++ library for cheminformatics.
 
 The core WASM module comes from RDKit's [MinimalLib](https://github.com/rdkit/rdkit/tree/master/Code/MinimalLib).
-MinimalLib is a C++ layer that wraps a subset of RDKit's API so it can be compiled to WebAssembly and used from JavaScript.
-The package is build and published directly from RDKit, while keeping JavaScript documentation here.
+MinimalLib wraps a subset of RDKit's API so it can be compiled to WebAssembly and used from JavaScript.
+The package is built and published from RDKit main repository, while JavaScript documentation lives here.
 
-The package itself consist only of three files;
+The package is only three files, with zero dependencies:
 
-- `RDKit_minimal.js` - Standard JavaScript wrapper for loading WASM modules
-- `RDKit_minimal.wasm` - The compiled RDKit MinimalLib WASM binary
-- `RDKit_minimal.d.ts` - TypeScript interface generated during compilation.
+- `RDKit_minimal.js` — Emscripten JavaScript glue that loads the WASM module
+- `RDKit_minimal.wasm` — compiled RDKit MinimalLib binary
+- `RDKit_minimal.d.ts` — TypeScript types generated at compile time
 
-That means the package has zero dependencies and if high-level component javascript is needed, this needs to be implemented yourself and won't be included in the general package.
-This is to ensure easy maintenance of the package.
+High-level UI components are not included, as these are usually framework specific.
+You will need to implement those yourself.
 
-## Install RDKit JS
-
-You can install it using one of the many (and growing) list of javascript package managers
+## Install
 
 ```bash
 npm i @rdkit/rdkit
-yarn add @rdkit/rdkit
-pnpm i @rdkit/rdkit
-...
+# yarn add @rdkit/rdkit
+# pnpm i @rdkit/rdkit
 ```
 
-Or use a CDN, by adding this script tag to your HTML.
+Or via CDN:
 
 ```html
 <script src="https://unpkg.com/@rdkit/rdkit/dist/RDKit_minimal.js"></script>
@@ -44,71 +42,82 @@ Or use a CDN, by adding this script tag to your HTML.
 
 ## Loading the WASM module
 
-The JavaScript wrapper exposes `initRDKitModule()`, which initializes the WASM module and returns an RDKit library object.
-
-RDKit runs in its own WASM memory space, separate from JavaScript memory.
-The module can be loaded inside a Web Worker to perform computationally intensive operations without blocking the main thread.
-
-WASM loading is asynchronous.
-`initRDKitModule()` returns a Promise, so you load it with either `.then` chain or `await`.
+`initRDKitModule()` initializes the WASM module and returns a `Promise` for the RDKit library object.
 
 ```js
-let GlobalRDKit;
-
-initRDKitModule().then(function (RDKit) {
-  console.log("RDKit version: " + RDKit.version());
-
-  // Set RDKit either as a global variable, or in the browser window object
-  // Note, some frameworks will not like the window-approach because that
-  // requires a browser runtime. For CDN approach, you will need the
-  // window-approach though.
-  GlobalRDKit = RDKit;
-  window.RDKit = RDKit;
-})
-
-// Or using await
-const GlobalRDKit = await initRDKitModule();
+const RDKit = await initRDKitModule();
+console.log("RDKit version:", RDKit.version());
 ```
 
-When you want to use RDKit with different bundlers or frameworks, some tricks are needed.
-Usually a trick is needed to make the `.wasm` file available as a standalone file, but it really varies.
-Also, because of the output `.js` file does some node checks, the bundlers have problems with node (not javascript) specific functions.
-We have created examples for Vanilla JS, React, Vue, Angular, Svelte, Next.js and Node.js.
-However, these are not RDKit specifc hacks, but generically how you setup WASM support for those frameworks.
+Or with `.then`:
 
-- [ ] TODO Explain the different generic approaches
+```js
+initRDKitModule().then((RDKit) => {
+  console.log("RDKit version:", RDKit.version());
+});
+```
 
-1. Custom Vite plugin (this repo's approach) — serve/copy .wasm from node_modules. Avoids manual copy, keeps dist/ clean for rebuilds.
-1. CDN-hosted — .wasm on external URL, locateFile points there. No build dependency but needs internet.
-1. ESM-integrated (newer) — some WASM toolchains emit .js + .wasm as ES module imports. Vite can handle these natively with ?url suffix or top-level await.
-1. Copy `.wasm` to a `public/` — .wasm file in public/ or dist/, fetched at runtime. Simplest. No tooling needed.
+Loading is asynchronous.
 
+For bundlers most friction is not related to RDKit, but how Emscripten-compiled modules ship compiled module.
+Most common issues are
 
-This branch is dead in the browser (the `if` is false at runtime). But
-esbuild parses the file at build time and tries to resolve every `import`
-it sees, including `"node:module"`. The build fails because `node:` built-ins
-do not exist in a browser bundle.
+> Making `.wasm` fetchable after bundling.
+> After bundling, the glue JS usually no longer sits next to `RDKit_minimal.wasm`.
+
+> There is a code branch in the `.js` file that checks for `ENVIRONMENT_IS_NODE` env variable, which has `node:` function calls.
+> Although these are never executed outside explicitly `nodejs`, some static analysis fails at build time, because the functions does not exist.
+
+Both requires framework specific fixes.
 
 ## Getting started
 
-When you have initialized the library, you can for example embed a molecule as svg
-
 ```js
-var mol = window.RDKit.get_mol("CC(=O)Oc1ccccc1C(=O)O");
-var svg = mol.get_svg();
-document.getElementById("drawing").innerHTML = svg;
-mol.delete(); // always free memory when done
+const RDKit = await initRDKitModule();
+console.log(RDKit.version());
+
+const mol = RDKit.get_mol("CCO");
+if (!mol) throw new Error("Failed to parse SMILES");
+
+console.log(mol.get_smiles());
+console.log(mol.get_num_atoms());
+console.log(JSON.parse(mol.get_descriptors()).amw);
+
+mol.delete();
 ```
 
-`mol.delete()` frees the WASM-side object, as emscripten allocations are not garbage-collected.
+## Examples being used with different frameworks
+
+- [RDKit.js + Vanilla JS]({{ '/examples/vanilla-js/' | relative_url }})
+- [RDKit.js + React (Vite)]({{ '/examples/react/' | relative_url }})
+- [RDKit.js + Vue (Vite)]({{ '/examples/vue/' | relative_url }})
+- [RDKit.js + Angular]({{ '/examples/angular/' | relative_url }})
+- [RDKit.js + Svelte (Vite)]({{ '/examples/svelte/' | relative_url }})
+- [RDKit.js + Next.js]({{ '/examples/nextjs/' | relative_url }})
+- [RDKit.js + Node.js]({{ '/examples/node/' | relative_url }})
+
+## Using RDKit.js Pro Tips
+
+- The module can also run inside a [Web Worker](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API) so heavy work does not block the UI thread
+- Always call `mol.delete()` when you dont need the molecule anymore, to free some memory
+- You can make your molecule SVG transparent with `.molecule-structure-svg svg rect:first-of-type {fill: transparent !important;}`
+- The package is compiled with emscripten `-fwasm-exceptions`, e.i. [WebAssembly.Exception](https://developer.mozilla.org/en-US/docs/WebAssembly/Reference/JavaScript_interface/Exception).
+- Have fun!
+
+## Note on versions
+
+Previously versions was formatted as "RDKit release 2022.3.3-1.0.0",
+noting the version of RDKit and iteration of JavaScript.
+
+But from 2026 and onwards there will only be the RDKit version,
+as it is published from the main repository. E.i. "2022.3.3".
+
+Old versions are kept of course.
 
 ## License
 
-The binary is compiled directly from RDKit, so license is unchanged.
-
-BSD 3-Clause.
+BSD 3-Clause (same as RDKit).
 
 ## Citation
 
-See [rdkit.com](https://rdkit.com) for citation.
-Note the version installed.
+See [rdkit.com](https://rdkit.com). Note the installed version when citing.
