@@ -10,8 +10,7 @@ permalink: /
 [![NPM Yearly Downloads](https://img.shields.io/npm/dy/@rdkit/rdkit)](https://www.npmjs.com/package/@rdkit/rdkit)
 [![NPM Total Downloads](https://img.shields.io/npm/dt/@rdkit/rdkit?label=total%20downloads)](https://www.npmjs.com/package/@rdkit/rdkit)
 
-RDKit.js is the official JavaScript distribution of cheminformatics functionality from the [RDKit](https://github.com/rdkit/rdkit),
-a C++ library for cheminformatics.
+RDKit.js is the official JavaScript distribution of cheminformatics functionality from the [RDKit](https://rdkit.org), C++ library for cheminformatics.
 
 The core WASM module comes from RDKit's [MinimalLib](https://github.com/rdkit/rdkit/tree/master/Code/MinimalLib).
 MinimalLib wraps a subset of RDKit's API so it can be compiled to WebAssembly and used from JavaScript.
@@ -120,4 +119,4 @@ BSD 3-Clause (same as RDKit).
 
 ## Citation
 
-See [rdkit.com](https://rdkit.com). Note the installed version when citing.
+See [rdkit.org](https://rdkit.org). Note the installed version when citing.
