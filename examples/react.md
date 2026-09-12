@@ -5,16 +5,14 @@ menu: React
 permalink: /examples/react/
 ---
 
-RDKit.js loads a `.wasm` module asynchronously. The simplest setup uses [Vite](https://vite.dev) which handles `.wasm` files natively.
+RDKit + React + Vite needs a fix to treat `.wasm` as an asset, import it with `?url`, and pass that URL via `locateFile`.
 
-Install dependencies:
-
-```sh
-npm install react react-dom @rdkit/rdkit
-npm install -D vite @vitejs/plugin-react
+```bash
+npm create vite@latest rdkit-react -- --template react
+cd rdkit-react
+npm install
+npm install @rdkit/rdkit
 ```
-
-Tell Vite to treat `.wasm` files as assets so it serves them from `node_modules` in dev and copies them to `dist/` in production:
 
 ```js
 // vite.config.js
@@ -27,41 +25,31 @@ export default defineConfig({
 });
 ```
 
-Import `initRDKitModule` directly from `@rdkit/rdkit`.
-It returns a Promise that resolves once the `.wasm` file is fetched and compiled.
-Call `get_mol()` with a SMILES string and use `dangerouslySetInnerHTML` to render the SVG:
-
 ```jsx
 // src/App.jsx
 import { useEffect, useState } from "react";
-import { createRoot } from "react-dom/client";
 import initRDKitModule from "@rdkit/rdkit";
-import wasmUrl from "@rdkit/rdkit/dist/RDKit_minimal.wasm?url";
-import "./App.css";
+import wasmUrl from "@rdkit/rdkit/RDKit_minimal.wasm?url";
 
-function App() {
-  const [RDKit, setRDKit] = useState(null);
+export default function App() {
+  const [text, setText] = useState("Loading...");
 
   useEffect(() => {
-    initRDKitModule({ locateFile: () => wasmUrl }).then(setRDKit);
+    initRDKitModule({ locateFile: () => wasmUrl }).then((RDKit) => {
+      const lines = [`RDKit version: ${RDKit.version()}`];
+      const mol = RDKit.get_mol("CCO");
+      if (!mol) {
+        lines.push("Failed to parse SMILES");
+      } else {
+        lines.push(`SMILES: ${mol.get_smiles()}`);
+        lines.push(`Atoms: ${mol.get_num_atoms()}`);
+        lines.push(`MW: ${JSON.parse(mol.get_descriptors()).amw}`);
+        mol.delete();
+      }
+      setText(lines.join("\n"));
+    });
   }, []);
 
-  if (!RDKit) return <div className="loading">Loading RDKit…</div>;
-
-  const mol = RDKit.get_mol("CC(=O)Oc1ccccc1C(=O)O");
-  const svg = mol.get_svg_with_highlights(
-    JSON.stringify({ width: 300, height: 300})
-  );
-  mol.delete();
-
-  return (
-    <div className="app">
-      <h1>RDKit + React</h1>
-      <div className="mol" dangerouslySetInnerHTML={{ __html: svg }} />
-    </div>
-  );
+  return <pre>{text}</pre>;
 }
-
-createRoot(document.getElementById("root")).render(<App />);
 ```
-

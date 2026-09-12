@@ -5,112 +5,52 @@ menu: Svelte
 permalink: /examples/svelte/
 ---
 
+RDKit + Svelte + Vite needs to treat `.wasm` as an asset, import it with `?url`, and pass that URL via `locateFile` so the binary is fetchable after bundling.
 
-Vite (the sveltekit bundler) needs `assetsInclude` to handle `.wasm` files.
+```bash
+npm create vite@latest rdkit-svelte -- --template svelte
+cd rdkit-svelte
+npm install
+npm install @rdkit/rdkit
+```
 
 ```js
 // vite.config.js
-export default {
-  assetsInclude: ['**/*.wasm']
-};
+import { defineConfig } from "vite";
+import { svelte } from "@sveltejs/vite-plugin-svelte";
+
+export default defineConfig({
+  plugins: [svelte()],
+  assetsInclude: ["**/*.wasm"],
+});
 ```
-
-Import the JavaScript module and WASM binary with the `?url` suffix, then Vite compiles it to a hashed URL at build time so the browser always finds it.
-
-```js
-// src/lib/rdkitUtils.js
-import initRDKitModule from '@rdkit/rdkit';
-import wasmUrl from '@rdkit/rdkit/RDKit_minimal.wasm?url';
-
-let rdkit = null;
-let loading = null;
-
-export async function getRDKit() {
-  if (rdkit) return rdkit;
-  if (!loading) {
-    promise = initRDKitModule({ locateFile: () => wasmUrl });
-  }
-  rdkit = await promise;
-  return rdkit;
-}
-```
-
-Which means you can use 
-
-```js
-// src/routes/test/+page.svelte
-import { getRDKit } from '$lib/rdkitUtils.js';
-```
-
-### Example Molecule Render
-
-Minimal Svelte 5 component that renders a molecule as SVG.
 
 ```svelte
-<!-- src/routes/example-page/MoleculeStructure.svelte -->
+<!-- src/App.svelte -->
 <script>
-  import { getRDKit } from '$lib/rdkitUtils.js';
+  import { onMount } from "svelte";
+  import initRDKitModule from "@rdkit/rdkit";
+  import wasmUrl from "@rdkit/rdkit/RDKit_minimal.wasm?url";
 
-  let { structure = '', width = 250, height = 200 } = $props();
+  let text = $state("Loading...");
 
-  let svg = $state('');
-  let loaded = $state(false);
-  let error = $state('');
+  onMount(async () => {
+    const RDKit = await initRDKitModule({ locateFile: () => wasmUrl });
+    const lines = [`RDKit version: ${RDKit.version()}`];
 
-  // TODO use derived instead, more svelte friendly
-
-  $effect(() => {
-    structure;
-    loadAndDraw();
-  });
-
-  // Set rdkit onLoad, more svelte friendly
-
-  async function loadAndDraw() {
-    try {
-      const rdkit = await getRDKit();
-      const mol = rdkit.get_mol(structure || 'invalid');
-
-      if (!mol) {
-        error = `Cannot parse: ${structure}`;
-        return
-      }
-
-      svg = mol.get_svg_with_highlights(JSON.stringify({ width, height }));
+    const mol = RDKit.get_mol("CCO");
+    if (!mol) {
+      lines.push("Failed to parse SMILES");
+    } else {
+      lines.push(`SMILES: ${mol.get_smiles()}`);
+      lines.push(`Atoms: ${mol.get_num_atoms()}`);
+      lines.push(`MW: ${JSON.parse(mol.get_descriptors()).amw}`);
       mol.delete();
-      loaded = true;
-      error = '';
-
-    } catch (e) {
-      error = e.message;
     }
-  }
 
-  loadAndDraw();
+    text = lines.join("\n");
+  });
 </script>
 
-{#if error}
-  <p class="error">{error}</p>
-{:else if !loaded}
-  <p>Loading…</p>
-{:else}
-  <div class="mol-svg" style="width:{width}px;height:{height}px">{@html svg}</div>
-{/if}
-
-<style>
-  .mol-svg :global(svg) { width: 100%; height: 100%; }
-  .mol-svg :global(svg) :global(rect:first-of-type) {
-        fill: transparent !important;
-  }
-</style>
+<pre>{text}</pre>
 ```
-
-```svelte
-<!-- src/routes/example-page/+page.svelte -->
-<script>
-  import MoleculeStructure from './MoleculeStructure.svelte';
-</script>
-
-<MoleculeStructure structure="CC(=O)Oc1ccccc1C(=O)O" width={300} height={250} />
-```
-

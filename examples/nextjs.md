@@ -5,35 +5,27 @@ menu: Next.js
 permalink: /examples/nextjs/
 ---
 
-RDKit.js loads a `.wasm` module asynchronously.
-Turbopack (Next.js 16) needs `resolveAlias` to map the `.wasm` file.
-The rdkit package also tries `require("fs")` for Node.js detection, and although never called in the browser, it complains in the static code analysis.
+RDKit + NextJS handles both server-side and client-side JavaScript.
+We need a `.wasm` fix to resolve `locateFile` for the client-side,
+and for server-side we need a `serverExternalPackages` configuration.
 
-First, install an app
-
-```sh
-npx create-next-app@latest project_name --typescript --src-dir --app --no-tailwind --no-eslint
-cd project_name
-pnpm i @rdkit/rdkit
+```bash
+npx create-next-app@latest rdkit-next --typescript --src-dir --app --no-tailwind --no-eslint
+cd rdkit-next
+npm install @rdkit/rdkit
 ```
 
-Configure `next.config.ts`.
-`serverExternalPackages` tells Next.js to skip bundling `@rdkit/rdkit` on the server.
-`resolveAlias` maps the `.wasm` file so Emscripten can find it in the browser.
-
-The dummy is only for the browser bundle where fs doesn't exist.
-And the `fs` alias is added and linked to a dummy function 
-
 ```ts
-// ./next.config.ts
+// next.config.ts
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["@rdkit/rdkit"],
   turbopack: {
     resolveAlias: {
-      "RDKit_minimal.wasm": "./node_modules/@rdkit/rdkit/dist/RDKit_minimal.wasm",
-      fs: "./src/lib/dummy.ts",
+      "RDKit_minimal.wasm":
+        "./node_modules/@rdkit/rdkit/dist/RDKit_minimal.wasm",
+      fs: { browser: "./src/lib/dummy.ts" },
     },
   },
 };
@@ -41,91 +33,77 @@ const nextConfig: NextConfig = {
 export default nextConfig;
 ```
 
-Where the dummy simply looks like
-
 ```ts
-// src/lib/dummy.ts
+// src/lib/dummy.ts — stub for emscripten's Node probe in the browser bundle
 export default {};
 ```
 
-For the the frontend `"use client"` skips SSR.
-`new URL("...", import.meta.url)` tells Turbopack to bundle the `.wasm`, then `locateFile` points at the bundled URL
+### Client
 
 ```tsx
-// src/app/rdkit-mol.tsx
+// src/app/rdkit-demo.tsx
 "use client";
 
 import { useEffect, useState } from "react";
-import type { RDKitModule } from "@rdkit/rdkit";
-import _initRDKitModule from "@rdkit/rdkit";
-
-const initRDKitModule = _initRDKitModule as unknown as (
-  options?: { locateFile?: () => string }
-) => Promise<RDKitModule>;
+import initRDKitModule from "@rdkit/rdkit";
 
 const wasmUrl = new URL("RDKit_minimal.wasm", import.meta.url).href;
 
-export default function RdkitMol() {
-  const [RDKit, setRDKit] = useState<RDKitModule | null>(null);
+export default function RdkitDemo() {
+  const [text, setText] = useState("Loading…");
 
   useEffect(() => {
-    initRDKitModule({ locateFile: () => wasmUrl }).then(setRDKit);
+    initRDKitModule({ locateFile: () => wasmUrl }).then((RDKit) => {
+      const lines = [`RDKit version: ${RDKit.version()}`];
+      const mol = RDKit.get_mol("CCO");
+      if (!mol) {
+        lines.push("Failed to parse SMILES");
+      } else {
+        lines.push(`SMILES: ${mol.get_smiles()}`);
+        lines.push(`Atoms: ${mol.get_num_atoms()}`);
+        lines.push(`MW: ${JSON.parse(mol.get_descriptors()).amw}`);
+        mol.delete();
+      }
+      setText(lines.join("\n"));
+    });
   }, []);
 
-  if (!RDKit) return <div>Loading RDKit...</div>;
-
-  const mol = RDKit.get_mol("CC(=O)Oc1ccccc1C(=O)O");
-  if (!mol) return <div>Invalid molecule</div>;
-
-  const svg = mol.get_svg_with_highlights(
-    JSON.stringify({
-      width: 400,
-      height: 300,
-      bondLineWidth: 1,
-      addStereoAnnotation: true,
-    })
-  );
-  mol.delete();
-
-  return <div dangerouslySetInnerHTML={{ __html: svg }} />;
+  return <pre>{text}</pre>;
 }
 ```
 
-Which can be used on a page
+Use it from `src/app/page.tsx` with `"use client"` content, or:
 
 ```tsx
-// src/app/page.tsx
-import RdkitMol from "./rdkit-mol";
+import RdkitDemo from "./rdkit-demo";
 
 export default function Home() {
-  return (
-    <main>
-      <h1>RDKit.js + Next.js</h1>
-      <RdkitMol />
-    </main>
-  );
+  return <RdkitDemo />;
 }
 ```
 
-## RDKit Next.js server-side
-
-So if you have a next.js API route, with `serverExternalPackages`, Node.js runs `@rdkit/rdkit` natively, which finds the `.wasm` next to the `.js` file in `node_modules`:
+### Server (API route)
 
 ```ts
 // src/app/api/rdkit/route.ts
 import { NextResponse } from "next/server";
-import initRDKitModule from "@rdkit/rdkit"
+import initRDKitModule from "@rdkit/rdkit";
 
 export async function GET() {
-  const RDKit = await initRDKitModule(); // Will find the wasm
+  const RDKit = await initRDKitModule();
+  const mol = RDKit.get_mol("CCO");
+  if (!mol) {
+    return NextResponse.json({ error: "Failed to parse SMILES" }, { status: 500 });
+  }
 
-  const mol = RDKit.get_mol("CC(=O)Oc1ccccc1C(=O)O");
-  const molblock = mol.get_molblock();
+  const payload = {
+    version: RDKit.version(),
+    smiles: mol.get_smiles(),
+    atoms: mol.get_num_atoms(),
+    amw: JSON.parse(mol.get_descriptors()).amw,
+  };
   mol.delete();
 
-  return NextResponse.json({
-    version: RDKit.version(),
-    molblock,
-  });
+  return NextResponse.json(payload);
 }
 ```
