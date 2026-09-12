@@ -18,9 +18,9 @@ The package is built and published from RDKit main repository, while JavaScript 
 
 The package is only three files, with zero dependencies:
 
-- `RDKit_minimal.js` — Emscripten JavaScript glue that loads the WASM module
-- `RDKit_minimal.wasm` — compiled RDKit MinimalLib binary
-- `RDKit_minimal.d.ts` — TypeScript types generated at compile time
+- `RDKit_minimal.js` - Emscripten JavaScript glue that loads the WASM module
+- `RDKit_minimal.wasm` - compiled RDKit MinimalLib binary
+- `RDKit_minimal.d.ts` - TypeScript types generated at compile time
 
 High-level UI components are not included, as these are usually framework specific.
 You will need to implement those yourself.

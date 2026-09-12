@@ -34,7 +34,7 @@ export default nextConfig;
 ```
 
 ```ts
-// src/lib/dummy.ts — stub for emscripten's Node probe in the browser bundle
+// src/lib/dummy.ts - stub for emscripten's Node probe in the browser bundle
 export default {};
 ```
 
