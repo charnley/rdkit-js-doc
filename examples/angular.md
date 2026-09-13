@@ -18,14 +18,14 @@ npm install @rdkit/rdkit
 // angular.json → projects.<name>.architect.build.options
 {
   "loader": { ".wasm": "file" },
-  "externalDependencies": ["node:module", "node:fs", "node:crypto"]
+  "externalDependencies": ["node:module", "node:fs", "node:crypto"],
 }
 ```
 
 ```jsonc
 // angular.json → projects.<name>.architect.serve.options
 {
-  "prebundle": {"exclude": ["@rdkit/rdkit"]}
+  "prebundle": { "exclude": ["@rdkit/rdkit"] },
 }
 ```
 

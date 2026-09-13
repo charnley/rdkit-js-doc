@@ -19,7 +19,7 @@ Use ESM (`"type": "module"`):
 {
   "name": "rdkit-node-example",
   "type": "module",
-  "scripts": { "start": "node index.js" }
+  "scripts": { "start": "node index.js" },
 }
 ```
 

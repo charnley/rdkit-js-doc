@@ -9,7 +9,9 @@ $on-palm: 800px;
 
 // Base typography
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
   font-size: 15px;
   line-height: 1.7;
   color: #292929;
@@ -29,11 +31,16 @@ body {
   margin: 40px 0;
 
   p {
-    margin-bottom: 1.0em;
+    margin-bottom: 1em;
     font-weight: 400;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-weight: 700;
     line-height: 1.3;
     margin-top: 1.3em;
@@ -85,7 +92,9 @@ body {
     background-color: #f1f1f1;
     padding: 0.2em 0.4em;
     border-radius: 3px;
-    font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+    font-family:
+      "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas,
+      "Courier New", monospace;
     font-size: 0.9em;
     color: #283942;
   }
@@ -94,7 +103,9 @@ body {
     display: inline-block;
     padding: 0.3em 0.6em;
     font-size: 0.8em;
-    font-family: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace;
+    font-family:
+      "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas,
+      "Courier New", monospace;
     line-height: 1;
     color: #24292e;
     background-color: #f6f8fa;
@@ -111,7 +122,7 @@ body {
     padding: 16px;
     overflow-x: auto;
     margin: 1.5em 0;
-    border:0;
+    border: 0;
     border-left: 4px solid #1a8917;
     background-color: #f8f8f8 !important;
 
@@ -124,7 +135,7 @@ body {
 
       svg {
         display: block;
-        margin:0 auto;
+        margin: 0 auto;
       }
     }
   }
@@ -136,7 +147,8 @@ body {
     margin: 0em 0;
   }
 
-  ul, ol {
+  ul,
+  ol {
     margin-bottom: 0.5em;
     padding-left: 0em;
 
@@ -144,7 +156,8 @@ body {
       margin-bottom: 0.1em;
     }
 
-    ul, ol {
+    ul,
+    ol {
       margin-bottom: 0em;
       padding-left: 0em;
     }
@@ -162,7 +175,8 @@ body {
     width: 100%;
     margin: 2em 0;
 
-    th, td {
+    th,
+    td {
       border: 1px solid #d0d7de;
       padding: 12px 16px;
       text-align: left;
@@ -406,7 +420,8 @@ details {
   overflow: hidden;
   font-size: inherit;
 
-  ul, ol {
+  ul,
+  ol {
     list-style-type: square;
     margin-bottom: 0.5em;
     padding-left: 0em;
@@ -415,7 +430,8 @@ details {
       margin-bottom: 0.1em;
     }
 
-    ul, ol {
+    ul,
+    ol {
       margin-bottom: 0em;
       padding-left: 0em;
     }
@@ -438,7 +454,7 @@ details {
     }
 
     &::after {
-      content: '\25b6';
+      content: "\25b6";
       font-size: 0.8em;
       transition: transform 0.2s ease;
       color: #6b7280;
@@ -453,7 +469,12 @@ details {
     }
   }
 
-  > div, > p, > ul, > ol, > pre, > blockquote {
+  > div,
+  > p,
+  > ul,
+  > ol,
+  > pre,
+  > blockquote {
     padding: 0 20px 20px 20px;
     margin: 0;
 
@@ -487,7 +508,7 @@ figure {
 .post-content p:has(img) {
   position: relative;
   display: block;
-  text-align:center;
+  text-align: center;
 }
 
 .post-content p:has(img) img {
@@ -503,7 +524,7 @@ figure {
   background: rgba(0, 0, 0, 0.85);
   color: white;
   padding: 10px 15px;
-  margin:10px;
+  margin: 10px;
   border-radius: 4px;
   font-size: 0.85em;
   font-weight: 500;

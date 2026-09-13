@@ -93,7 +93,10 @@ export async function GET() {
   const RDKit = await initRDKitModule();
   const mol = RDKit.get_mol("CCO");
   if (!mol) {
-    return NextResponse.json({ error: "Failed to parse SMILES" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to parse SMILES" },
+      { status: 500 },
+    );
   }
 
   const payload = {
